@@ -26,7 +26,7 @@ impl Display for ChunkErr {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
     chunk_type: ChunkType,
     data: Box<[u8]>,

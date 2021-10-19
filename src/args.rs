@@ -1,6 +1,19 @@
 use crate::chunk_type::ChunkType;
 use clap::{App, AppSettings, Arg, SubCommand};
-use std::{path::Path, str::FromStr};
+use std::{fmt::Display, path::Path, str::FromStr};
+#[derive(Debug)]
+pub enum ArgsParseErr {
+    UnknownArgument,
+}
+impl std::error::Error for ArgsParseErr {}
+
+impl Display for ArgsParseErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArgsParseErr::UnknownArgument => write!(f, "Unkown argument found"),
+        }
+    }
+}
 pub enum ArgsKind {
     Encode(EncodeArgs),
     Decode(DecodeArgs),
@@ -16,44 +29,63 @@ fn is_chunk_type_valid(chunk_type: String) -> Result<(), String> {
     }
 }
 pub struct EncodeArgs {
-    file_path: Box<Path>,
-    chunk_type: ChunkType,
-    message: String,
-    output_path: Option<Box<Path>>,
+    pub file_path: Box<Path>,
+    pub chunk_type: ChunkType,
+    pub message: String,
+    pub output_path: Box<Path>,
 }
 
 pub struct DecodeArgs {
-    file_path: Box<Path>,
-    chunk_type: ChunkType,
+    pub file_path: Box<Path>,
+    pub chunk_type: ChunkType,
 }
 
 pub struct RemoveArgs {
-    file_path: Box<Path>,
-    chunk_type: ChunkType,
+    pub file_path: Box<Path>,
+    pub chunk_type: ChunkType,
 }
 
 pub struct PrintArgs {
-    file_path: Box<Path>,
+    pub file_path: Box<Path>,
 }
 impl EncodeArgs {
     pub fn new(
         file_path: &str,
         chunk_type: &str,
         message: &str,
-        output_path: Option<&str>,
+        output_path: &str,
     ) -> crate::Result<Self> {
         Ok(Self {
             file_path: Box::from(Path::new(file_path)),
             chunk_type: ChunkType::from_str(chunk_type)?,
             message: message.to_string(),
-            output_path: match output_path {
-                Some(o) => Some(Box::from(Path::new(o))),
-                None => None,
-            },
+            output_path: Box::from(Path::new(output_path)),
         })
     }
 }
-
+impl DecodeArgs {
+    pub fn new(file_path: &str, chunk_type: &str) -> crate::Result<Self> {
+        Ok(Self {
+            file_path: Box::from(Path::new(file_path)),
+            chunk_type: ChunkType::from_str(chunk_type)?,
+        })
+    }
+}
+impl RemoveArgs {
+    pub fn new(file_path: &str, chunk_type: &str) -> crate::Result<Self> {
+        Ok(Self {
+            file_path: Box::from(Path::new(file_path)),
+            chunk_type: ChunkType::from_str(chunk_type)?,
+        })
+    }
+}
+impl PrintArgs {
+    pub fn new(file_path: &str) -> crate::Result<Self> {
+        Ok(Self {
+            file_path: Box::from(Path::new(file_path)),
+        })
+    }
+}
 pub struct Config {}
 impl Config {
     pub fn new() -> Self {
@@ -92,7 +124,7 @@ impl Config {
                     )
                     .arg(
                         Arg::with_name("output_path")
-                            .required(false)
+                            .required(true)
                             .help("Output path for png")
                             .short("o")
                             .index(4),
@@ -153,9 +185,20 @@ impl Config {
                 m.value_of("file_path").unwrap(),
                 m.value_of("chunk_type").unwrap(),
                 m.value_of("message").unwrap(),
-                m.value_of("output_path"),
+                m.value_of("output_path").unwrap(),
             )?)),
-            _ => todo!(),
+            ("decode", Some(m)) => Ok(ArgsKind::Decode(DecodeArgs::new(
+                m.value_of("file_path").unwrap(),
+                m.value_of("chunk_type").unwrap(),
+            )?)),
+            ("remove", Some(m)) => Ok(ArgsKind::Remove(RemoveArgs::new(
+                m.value_of("file_path").unwrap(),
+                m.value_of("chunk_type").unwrap(),
+            )?)),
+            ("print", Some(m)) => Ok(ArgsKind::Print(PrintArgs::new(
+                m.value_of("file_path").unwrap(),
+            )?)),
+            _ => Err(Box::new(ArgsParseErr::UnknownArgument)),
         }
     }
 }

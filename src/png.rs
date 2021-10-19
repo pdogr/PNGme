@@ -1,5 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{Display, Formatter};
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::path::Path;
 
 use crate::chunk::Chunk;
 use crate::{Error, Result};
@@ -19,6 +22,7 @@ impl Display for PngErr {
         }
     }
 }
+#[derive(Clone)]
 pub struct Png {
     chunks: Vec<Chunk>, // used vec instead of box as don't wanna worry about push
 }
@@ -51,7 +55,6 @@ impl Display for Png {
             "{}",
             self.chunks.iter().fold(String::new(), |mut acc, chunk| {
                 acc.push_str(" -> ");
-                acc.push_str(&format!("{}", chunk));
                 acc
             })
         )
@@ -59,8 +62,24 @@ impl Display for Png {
 }
 impl Png {
     pub const STANDARD_HEADER: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
-    fn from_chunks(chunks: Vec<Chunk>) -> Self {
+    pub fn from_chunks(chunks: Vec<Chunk>) -> Self {
         Self { chunks }
+    }
+    pub fn from_file(p: &Path) -> Result<Self> {
+        let mut f = OpenOptions::new().read(true).open(p)?;
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        Png::try_from(&buffer[..])
+    }
+    pub fn to_file(&self, p: &Path) -> Result<()> {
+        let mut f = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(p)?;
+        f.write_all(&self.as_bytes())?;
+        f.flush()?;
+        Ok(())
     }
     pub fn append_chunk(&mut self, chunk: Chunk) {
         self.chunks.push(chunk);
@@ -72,21 +91,21 @@ impl Png {
         &self.chunks
     }
 
-    fn chunk_by_type(&self, chunk_type: &str) -> Option<&Chunk> {
+    pub fn chunk_by_type(&self, chunk_type: &str) -> Option<&Chunk> {
         self.chunks
             .iter()
             .find(|&c| c.chunk_type().to_string() == chunk_type)
     }
 
-    fn remove_chunk(&mut self, chunk_type: &str) -> Result<Chunk> {
-        Ok(self.chunks.remove(
-            self.chunks
-                .iter()
-                .position(|c| c.chunk_type().to_string() == chunk_type)
-                .ok_or(PngErr::PngChunkTypeAbsent)?,
-        ))
+    pub fn remove_chunk(&mut self, chunk_type: &str) -> Result<Chunk> {
+        let idx = self
+            .chunks
+            .iter()
+            .position(|c| c.chunk_type().to_string() == chunk_type)
+            .ok_or(PngErr::PngChunkTypeAbsent)?;
+        Ok(self.chunks.remove(idx))
     }
-    fn as_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&self) -> Vec<u8> {
         self.header()
             .iter()
             .chain(

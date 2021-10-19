@@ -18,7 +18,7 @@ impl Display for ChunkTypeErr {
         }
     }
 }
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ChunkType {
     bytes: [u8; 4],
 }
